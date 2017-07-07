@@ -1,61 +1,88 @@
 package com.gal.urlindexer;
 
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapred.*;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Set;
-import java.util.StringTokenizer;
+
 
 /**
  * Created by gbenhaim on 7/4/17.
  */
 public class UrlIndexer {
 
-    public static final HashMap<String, Integer> urlMap = new HashMap<String, Integer>();
-    public static final HashMap<String, Set<String>> wordMap = new HashMap<String, Set<String>>();
+    public static final String KEY = "gal";
 
     public static void main(String args[]) throws IOException {
-        
+
+        /*
         String url = "http://www.ynet.co.il/";
-        Document doc = Jsoup.connect(url).get();
-        String words = doc.text();
-        Elements links = doc.select("a[href]");
+        UrlMapper urlMapper = new UrlMapper(url);
+        urlMapper.calc();
+        //System.out.println(urlMapper.getWordMap());
+        //System.out.println(urlMapper.getUrlMap());
+        //System.out.println(urlMapper.toJson());
 
-        // add words
-        StringTokenizer tokenizer = new StringTokenizer(words, " \t\n\r\f-\\/-.,?!@#$%^&*():;'`~<>|");
-        while (tokenizer.hasMoreTokens()) {
-            addWord(tokenizer.nextToken(), url);
-        }
+        Gson gson = new Gson();
 
-        // add urls
-        for (Element link : links) {
-            addUrl(link.attr("abs:href"));
-        }
+        HashMap<String, HashMap> currentMap = gson.fromJson(urlMapper.toJson(), new TypeToken<HashMap<String, HashMap>>(){}.getType());
 
-        System.out.println(urlMap);
-        System.out.println(wordMap);
+        System.out.println(currentMap);
+        */
+
+        JobConf conf = new JobConf(UrlIndexer.class);
+        conf.setJobName("urlIndexer");
+
+        conf.setOutputKeyClass(Text.class);
+        conf.setOutputValueClass(Text.class);
+
+        conf.setMapperClass(Map.class);
+        conf.setReducerClass(Reduce.class);
+
+        conf.setInputFormat(TextInputFormat.class);
+        conf.setOutputFormat(TextOutputFormat.class);
+
+        FileInputFormat.setInputPaths(conf, new Path(args[0]));
+        FileOutputFormat.setOutputPath(conf, new Path(args[1]));
+
+        JobClient.runJob(conf);
     }
 
-    public static void addUrl(String url) {
-        if (! urlMap.containsKey(url)) {
-            urlMap.put(url, 1);
-        } else {
-            urlMap.put(url, urlMap.get(url) + 1);
+    public static class Map extends MapReduceBase implements Mapper<LongWritable, Text, Text, Text> {
+        public void map(LongWritable key, Text value, OutputCollector<Text, Text> output, Reporter reporter) throws IOException {
+            String url = value.toString();
+            UrlMapper urlMapper = new UrlMapper(url);
+            urlMapper.calc();
+            Text outText = new Text();
+            outText.set(urlMapper.toJson());
+            output.collect(new Text(KEY), outText);
         }
     }
 
-    public static void addWord(String word, String url) {
-        String wordLowerCase = word.toLowerCase();
+    public static class Reduce extends MapReduceBase implements Reducer<Text, Text, Text, Text> {
+        public void reduce(Text key, Iterator<Text> values, OutputCollector<Text, Text> output, Reporter reporter) throws IOException {
+            Gson gson = new Gson();
+            UrlMapper urlMapper = new UrlMapper(null);
 
-        if (! wordMap.containsKey(word)) {
-            wordMap.put(wordLowerCase, new HashSet<String>());
+            while (values.hasNext()) {
+                HashMap<String, HashMap> currentMap = gson.fromJson(values.next().toString(), new TypeToken<HashMap<String, HashMap>>(){}.getType());
+                HashMap<String, Double> currentUrlMap = currentMap.get(UrlMapper.URL_MAP);
+                HashMap<String, Set<String>> currentWordMap = currentMap.get(UrlMapper.WORD_MAP);
+
+                urlMapper.addUrlMap(currentUrlMap);
+                urlMapper.addWordMap(currentWordMap);
+
+            }
+            output.collect(new Text(KEY), new Text(urlMapper.toJson()));
         }
-
-        wordMap.get(wordLowerCase).add(url);
     }
+
+
 }
