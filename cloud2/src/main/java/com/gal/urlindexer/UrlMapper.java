@@ -49,6 +49,22 @@ public class UrlMapper {
         return gson.toJson(map);
     }
 
+    public String toCSV() {
+        StringBuilder s = new StringBuilder();
+        for (Map.Entry<String, Set<String>> entry : mWordMap.entrySet()) {
+            s.append(String.format("%s, %s", entry.getKey(), entry.getValue()));
+            s.append("\n");
+        }
+
+        for (Map.Entry<String, Double> entry : mUrlMap.entrySet()) {
+            s.append(String.format("%s, %s", entry.getKey(), entry.getValue()));
+            s.append("\n");
+        }
+        s.append("\n");
+
+        return s.toString();
+    }
+
     public void addUrlMap(HashMap<String, Double> urlMap) {
         for (Map.Entry<String, Double> entry : urlMap.entrySet()) {
             addUrl(entry.getKey(), entry.getValue());

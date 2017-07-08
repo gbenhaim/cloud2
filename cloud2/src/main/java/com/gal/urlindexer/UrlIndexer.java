@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.*;
 
@@ -21,7 +22,6 @@ public class UrlIndexer {
     public static final String KEY = "gal";
 
     public static void main(String args[]) throws IOException {
-
         /*
         String url = "http://www.ynet.co.il/";
         UrlMapper urlMapper = new UrlMapper(url);
@@ -34,7 +34,7 @@ public class UrlIndexer {
 
         HashMap<String, HashMap> currentMap = gson.fromJson(urlMapper.toJson(), new TypeToken<HashMap<String, HashMap>>(){}.getType());
 
-        System.out.println(currentMap);
+        System.out.println(urlMapper.toCSV());
         */
 
         JobConf conf = new JobConf(UrlIndexer.class);
@@ -66,8 +66,8 @@ public class UrlIndexer {
         }
     }
 
-    public static class Reduce extends MapReduceBase implements Reducer<Text, Text, Text, Text> {
-        public void reduce(Text key, Iterator<Text> values, OutputCollector<Text, Text> output, Reporter reporter) throws IOException {
+    public static class Reduce extends MapReduceBase implements Reducer<Text, Text, NullWritable, Text> {
+        public void reduce(Text key, Iterator<Text> values, OutputCollector<NullWritable, Text> output, Reporter reporter) throws IOException {
             Gson gson = new Gson();
             UrlMapper urlMapper = new UrlMapper(null);
 
@@ -80,7 +80,7 @@ public class UrlIndexer {
                 urlMapper.addWordMap(currentWordMap);
 
             }
-            output.collect(new Text(KEY), new Text(urlMapper.toJson()));
+            output.collect(NullWritable.get(), new Text(urlMapper.toCSV()));
         }
     }
 
